@@ -50,3 +50,4 @@ Este documento registra continuamente as tarefas, funcionalidades, correções e
 | 2023-10-24 | KIOSK-01/02/03 | Desenvolvido o Terminal Kiosk (`index.html`), Ticket (`ticket.js`) e controlador (`app.js`) | Concluído |
 | 2023-10-24 | ADMIN-01/02 | Criado Painel do RH (`admin.html`) e controlador de auditoria (`admin-app.js`) | Concluído |
 | 2023-10-24 | TEST-01 | Testes unitários do módulo de janelas e verificação dos fluxos da aplicação | Concluído |
+| 2023-10-24 | DOC-01 | Adicionado guia passo a passo de conexão do SQL do Supabase ao repositório no `README.md` | Concluído |
