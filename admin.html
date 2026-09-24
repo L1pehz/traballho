@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel do RH - Auditoria e Ponto</title>
+
+  <!-- Estilos CSS -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+
+  <!-- Lucide Icons CDN ESM -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.294.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+
+  <!-- Cabeçalho Principal -->
+  <header class="app-header">
+    <div class="app-brand">
+      <i data-lucide="shield-check"></i>
+      <span>Painel do RH - Auditoria de Ponto</span>
+    </div>
+    <div>
+      <a href="index.html" class="btn btn-primary">
+        <i data-lucide="qr-code"></i> Voltar ao Terminal
+      </a>
+    </div>
+  </header>
+
+  <!-- Conteúdo Principal -->
+  <main class="main-container">
+
+    <!-- Navegação por Abas -->
+    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+      <button id="tab-registros" class="btn btn-primary">
+        <i data-lucide="check-circle-2"></i> Registros de Ponto
+      </button>
+      <button id="tab-ocorrencias" class="btn btn-outline">
+        <i data-lucide="alert-triangle"></i> Ocorrências Bloqueadas
+      </button>
+    </div>
+
+    <!-- Seção: Registros de Ponto Aprovados -->
+    <section id="section-registros" class="card">
+      <h2 class="card-title">
+        <i data-lucide="file-text"></i> Batidas Aprovadas
+      </h2>
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Matrícula</th>
+              <th>Funcionário</th>
+              <th>Tipo</th>
+              <th>Autenticação</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-registros-body">
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted);">Carregando registros...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Seção: Ocorrências Bloqueadas / Fora da Janela -->
+    <section id="section-ocorrencias" class="card" style="display: none;">
+      <h2 class="card-title">
+        <i data-lucide="shield-alert"></i> Ocorrências e Tentativas Mapeadas
+      </h2>
+      <div class="table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Funcionário</th>
+              <th>Tipo de Ocorrência</th>
+              <th>QR Code Lido</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-ocorrencias-body">
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted);">Carregando ocorrências...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal para Visualização da Foto da Ocorrência -->
+  <div id="photo-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 style="font-size: 1.1rem; font-weight: 600;">Evidência de Ocorrência</h3>
+        <button id="btn-close-modal" class="btn btn-outline" style="padding: 0.25rem 0.5rem;">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div style="text-align: center;">
+        <img id="modal-photo-img" src="" alt="Foto Capturada" style="max-width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+      </div>
+    </div>
+  </div>
+
+  <!-- Script do Painel RH -->
+  <script type="module" src="js/admin-app.js"></script>
+</body>
+</html>

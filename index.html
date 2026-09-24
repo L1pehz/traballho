@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminal de Ponto - Kiosk</title>
+
+  <!-- Estilos CSS -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+
+  <!-- Lucide Icons CDN ESM -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.294.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+
+  <!-- Cabeçalho Principal -->
+  <header class="app-header">
+    <div class="app-brand">
+      <i data-lucide="qr-code"></i>
+      <span>Terminal de Ponto</span>
+    </div>
+    <div class="header-clock" id="clock-display">
+      <i data-lucide="clock"></i>
+      <span id="current-time">--:--:--</span>
+    </div>
+    <div>
+      <a href="admin.html" class="btn btn-outline">
+        <i data-lucide="shield"></i> Painel RH
+      </a>
+    </div>
+  </header>
+
+  <!-- Conteúdo Principal -->
+  <main class="main-container">
+    <div class="kiosk-grid">
+
+      <!-- Seção do Leitor de Câmera -->
+      <section class="card">
+        <h2 class="card-title">
+          <i data-lucide="camera"></i> Escanear Crachá (QR Code)
+        </h2>
+
+        <div class="camera-wrapper">
+          <video id="camera-video" class="camera-video" autoplay playsinline muted></video>
+          <div class="camera-overlay"></div>
+        </div>
+
+        <div id="status-container" class="alert alert-warning" style="margin-top: 1rem;">
+          <i data-lucide="info"></i>
+          <span>Aproxime o QR Code do seu crachá em frente à câmera...</span>
+        </div>
+      </section>
+
+      <!-- Seção de Confirmação e Ticket -->
+      <section class="card">
+        <h2 class="card-title">
+          <i data-lucide="file-check"></i> Comprovante do Registro
+        </h2>
+
+        <div id="feedback-area" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+          <div class="ticket-preview" style="text-align: center; color: var(--text-muted);">
+            <i data-lucide="scan-line" style="width: 48px; height: 48px; margin: 0 auto 1rem; color: var(--border-hover-color);"></i>
+            <p>Nenhuma batida efetuada no momento.</p>
+            <p><small>O comprovante será gerado automaticamente após a leitura do QR Code.</small></p>
+          </div>
+        </div>
+
+        <div id="ticket-actions" style="margin-top: 1rem; display: none; gap: 0.75rem;">
+          <button id="btn-print" class="btn btn-primary" style="flex: 1;">
+            <i data-lucide="printer"></i> Imprimir Ticket
+          </button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <canvas id="camera-canvas" style="display: none;"></canvas>
+
+  <!-- Ponto de Entrada JavaScript -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
