@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terminal de Ponto - Kiosk</title>
+  <title>Central de Segurança Pessoal - Simulação MIT App Inventor</title>
 
   <!-- Estilos CSS -->
   <link rel="stylesheet" href="css/main.css">
@@ -17,66 +17,238 @@
   <!-- Cabeçalho Principal -->
   <header class="app-header">
     <div class="app-brand">
-      <i data-lucide="qr-code"></i>
-      <span>Terminal de Ponto</span>
+      <i data-lucide="shield-alert"></i>
+      <span>Assistente de Segurança Pessoal</span>
     </div>
     <div class="header-clock" id="clock-display">
       <i data-lucide="clock"></i>
       <span id="current-time">--:--:--</span>
     </div>
-    <div>
-      <a href="admin.html" class="btn btn-outline">
-        <i data-lucide="shield"></i> Painel RH
-      </a>
-    </div>
   </header>
 
   <!-- Conteúdo Principal -->
   <main class="main-container">
-    <div class="kiosk-grid">
+    <div class="app-layout">
 
-      <!-- Seção do Leitor de Câmera -->
-      <section class="card">
-        <h2 class="card-title">
-          <i data-lucide="camera"></i> Escanear Crachá (QR Code)
-        </h2>
+      <!-- Navegação Lateral (Telas do App) -->
+      <nav class="nav-sidebar">
+        <h3 class="sidebar-title">Telas do App Inventor</h3>
+        <button class="nav-btn active" data-screen="screen-sos">
+          <i data-lucide="bell-ring"></i> 1. Emergência (SOS)
+        </button>
+        <button class="nav-btn" data-screen="screen-location">
+          <i data-lucide="map-pin"></i> 2. Localização GPS
+        </button>
+        <button class="nav-btn" data-screen="screen-siren">
+          <i data-lucide="volume-2"></i> 3. Sirene & Alertas
+        </button>
+        <button class="nav-btn" data-screen="screen-checklist">
+          <i data-lucide="check-square"></i> 4. Checklist Pré-Saída
+        </button>
+        <button class="nav-btn" data-screen="screen-history">
+          <i data-lucide="history"></i> 5. Histórico em Memória
+        </button>
+      </nav>
 
-        <div class="camera-wrapper">
-          <video id="camera-video" class="camera-video" autoplay playsinline muted></video>
-          <div class="camera-overlay"></div>
-        </div>
+      <!-- Simulador de Smartphone / Painel Central -->
+      <div class="phone-simulator">
 
-        <div id="status-container" class="alert alert-warning" style="margin-top: 1rem;">
-          <i data-lucide="info"></i>
-          <span>Aproxime o QR Code do seu crachá em frente à câmera...</span>
-        </div>
-      </section>
+        <!-- TELA 1: SOS / EMERGÊNCIA -->
+        <div class="app-screen active" id="screen-sos">
+          <div class="screen-header">
+            <h2>Central de Segurança - SOS</h2>
+            <p id="sos-status-badge" class="badge badge-safe">Status: Monitoramento Ativo (Seguro)</p>
+          </div>
 
-      <!-- Seção de Confirmação e Ticket -->
-      <section class="card">
-        <h2 class="card-title">
-          <i data-lucide="file-check"></i> Comprovante do Registro
-        </h2>
+          <div class="screen-body">
+            <div class="sos-card">
+              <button id="btn-sos-main" class="btn-sos">
+                <i data-lucide="alert-octagon"></i>
+                <span>EMERGÊNCIA SOS</span>
+              </button>
 
-        <div id="feedback-area" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
-          <div class="ticket-preview" style="text-align: center; color: var(--text-muted);">
-            <i data-lucide="scan-line" style="width: 48px; height: 48px; margin: 0 auto 1rem; color: var(--border-hover-color);"></i>
-            <p>Nenhuma batida efetuada no momento.</p>
-            <p><small>O comprovante será gerado automaticamente após a leitura do QR Code.</small></p>
+              <div id="sos-countdown-container" class="countdown-box hidden">
+                <p>Acionando em <strong id="countdown-number">5</strong>s...</p>
+                <button id="btn-cancel-sos" class="btn btn-warning">
+                  <i data-lucide="x-circle"></i> Cancelar SOS
+                </button>
+              </div>
+            </div>
+
+            <div class="quick-nav">
+              <h3>Acesso Rápido às Funcionalidades</h3>
+              <div class="grid-nav-buttons">
+                <button class="btn btn-outline nav-quick" data-target="screen-location">
+                  <i data-lucide="map-pin"></i> GPS
+                </button>
+                <button class="btn btn-outline nav-quick" data-target="screen-siren">
+                  <i data-lucide="volume-2"></i> Sirene
+                </button>
+                <button class="btn btn-outline nav-quick" data-target="screen-checklist">
+                  <i data-lucide="check-square"></i> Checklist
+                </button>
+                <button class="btn btn-outline nav-quick" data-target="screen-history">
+                  <i data-lucide="history"></i> Histórico
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div id="ticket-actions" style="margin-top: 1rem; display: none; gap: 0.75rem;">
-          <button id="btn-print" class="btn btn-primary" style="flex: 1;">
-            <i data-lucide="printer"></i> Imprimir Ticket
-          </button>
+        <!-- TELA 2: LOCALIZAÇÃO GPS -->
+        <div class="app-screen" id="screen-location">
+          <div class="screen-header">
+            <h2>Localização pelo GPS</h2>
+            <p class="text-muted">Captura e exibição de coordenadas em tempo real</p>
+          </div>
+
+          <div class="screen-body">
+            <div class="card info-card">
+              <div class="info-row">
+                <i data-lucide="navigation"></i>
+                <div>
+                  <strong>Latitude:</strong>
+                  <span id="label-latitude">-23.550520</span>
+                </div>
+              </div>
+              <div class="info-row">
+                <i data-lucide="navigation-off"></i>
+                <div>
+                  <strong>Longitude:</strong>
+                  <span id="label-longitude">-46.633308</span>
+                </div>
+              </div>
+              <div class="info-row">
+                <i data-lucide="signal"></i>
+                <div>
+                  <strong>Status GPS:</strong>
+                  <span id="label-gps-status" class="text-success">GPS Ativo / Sinal Excelente</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="action-stack">
+              <button id="btn-update-gps" class="btn btn-primary">
+                <i data-lucide="refresh-cw"></i> Capturar Nova Localização
+              </button>
+              <button id="btn-open-maps" class="btn btn-success">
+                <i data-lucide="external-link"></i> Abrir no Google Maps
+              </button>
+              <button id="btn-toggle-gps-error" class="btn btn-outline">
+                <i data-lucide="alert-triangle"></i> Simular GPS Desativado / Erro
+              </button>
+            </div>
+          </div>
         </div>
-      </section>
+
+        <!-- TELA 3: SIRENE & ALERTAS -->
+        <div class="app-screen" id="screen-siren">
+          <div class="screen-header">
+            <h2>Sirene e Sinalização</h2>
+            <p class="text-muted">Alertas sonoros, vibração e lanterna</p>
+          </div>
+
+          <div class="screen-body">
+            <div class="alert-status-card" id="siren-status-card">
+              <i data-lucide="volume-x" id="siren-icon"></i>
+              <span id="siren-status-text">Nenhum alerta ativo</span>
+            </div>
+
+            <div class="action-stack">
+              <button id="btn-play-siren" class="btn btn-danger btn-lg">
+                <i data-lucide="volume-2"></i> Reproduzir Sirene de Alerta
+              </button>
+              <button id="btn-trigger-vibration" class="btn btn-warning">
+                <i data-lucide="smartphone"></i> Simular Vibração
+              </button>
+              <button id="btn-toggle-flashlight" class="btn btn-info">
+                <i data-lucide="flashlight"></i> Alternar Lanterna
+              </button>
+              <button id="btn-stop-all-alerts" class="btn btn-dark btn-lg">
+                <i data-lucide="square"></i> Interromper Todos os Alertas
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TELA 4: CHECKLIST DE SEGURANÇA -->
+        <div class="app-screen" id="screen-checklist">
+          <div class="screen-header">
+            <h2>Checklist de Segurança</h2>
+            <p class="text-muted">Procedimentos recomendados antes de sair</p>
+          </div>
+
+          <div class="screen-body">
+            <!-- Barra de Progresso Calculada -->
+            <div class="progress-container">
+              <div class="progress-header">
+                <span>Progresso das Verificações</span>
+                <strong id="progress-percentage">0%</strong>
+              </div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progress-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <div class="checklist-items" id="checklist-container">
+              <label class="check-item">
+                <input type="checkbox" class="chk-procedure" data-id="1">
+                <span>1. Janelas e portas trancadas</span>
+              </label>
+              <label class="check-item">
+                <input type="checkbox" class="chk-procedure" data-id="2">
+                <span>2. Bateria do celular > 50%</span>
+              </label>
+              <label class="check-item">
+                <input type="checkbox" class="chk-procedure" data-id="3">
+                <span>3. Contato de confiança informado sobre o trajeto</span>
+              </label>
+              <label class="check-item">
+                <input type="checkbox" class="chk-procedure" data-id="4">
+                <span>4. Documentos pessoais e dinheiro em local seguro</span>
+              </label>
+              <label class="check-item">
+                <input type="checkbox" class="chk-procedure" data-id="5">
+                <span>5. Localização GPS e dados móveis ativados</span>
+              </label>
+            </div>
+
+            <button id="btn-reset-checklist" class="btn btn-outline" style="margin-top: 1rem;">
+              <i data-lucide="rotate-ccw"></i> Reiniciar Checklist
+            </button>
+          </div>
+        </div>
+
+        <!-- TELA 5: HISTÓRICO DE EVENTOS EM MEMÓRIA -->
+        <div class="app-screen" id="screen-history">
+          <div class="screen-header">
+            <h2>Histórico de Eventos</h2>
+            <p class="text-muted">Registros mantidos em memória durante a sessão</p>
+          </div>
+
+          <div class="screen-body">
+            <div class="history-summary">
+              <strong>Total de Acionamentos:</strong>
+              <span id="history-counter" class="badge badge-neutral">0</span>
+            </div>
+
+            <ul class="history-list" id="history-list-items">
+              <li class="empty-history">Nenhum evento registrado até o momento.</li>
+            </ul>
+
+            <button id="btn-clear-history" class="btn btn-outline-danger" style="margin-top: 1rem;">
+              <i data-lucide="trash-2"></i> Limpar Histórico
+            </button>
+          </div>
+        </div>
+
+      </div>
 
     </div>
   </main>
 
-  <canvas id="camera-canvas" style="display: none;"></canvas>
+  <!-- Elemento de áudio para sirene simulada -->
+  <audio id="audio-siren" loop src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
 
   <!-- Ponto de Entrada JavaScript -->
   <script type="module" src="js/app.js"></script>
