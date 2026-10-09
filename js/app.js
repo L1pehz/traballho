@@ -1,219 +1,301 @@
-// Controlador Principal da Aplicação Terminal de Ponto (Kiosk)
-
-import { CameraService } from './services/camera.js';
-import { decodeQRCodeFromImageData } from './services/qrcode.js';
-import { validarJanelaHorario } from './services/tolerance.js';
-import {
-  buscarFuncionarioPorQRCode,
-  buscarJanelasHorario,
-  registrarPonto,
-  registrarOcorrencia
-} from './services/supabase.js';
-import { renderTicketHTML, imprimirTicket } from './components/ticket.js';
-import { renderIcons } from './components/icons.js';
-
-class KioskApp {
-  constructor() {
-    this.videoElement = document.getElementById('camera-video');
-    this.canvasElement = document.getElementById('camera-canvas');
-    this.statusContainer = document.getElementById('status-container');
-    this.feedbackArea = document.getElementById('feedback-area');
-    this.ticketActions = document.getElementById('ticket-actions');
-    this.btnPrint = document.getElementById('btn-print');
-    this.currentTimeDisplay = document.getElementById('current-time');
-
-    this.cameraService = new CameraService(this.videoElement, this.canvasElement);
-    this.isProcessing = false;
-    this.scanInterval = null;
-    this.lastScannedCode = null;
-    this.lastScanTime = 0;
-  }
-
-  async init() {
-    renderIcons();
-    this.startClock();
-    this.setupEventListeners();
-
-    try {
-      await this.cameraService.startCamera();
-      this.startScanning();
-    } catch (error) {
-      this.showStatus('danger', 'camera-off', 'Erro de Câmera: ' + error.message);
-    }
-  }
-
-  startClock() {
-    const updateTime = () => {
-      const now = new Date();
-      this.currentTimeDisplay.textContent = now.toLocaleTimeString('pt-BR');
-    };
-    updateTime();
-    setInterval(updateTime, 1000);
-  }
-
-  setupEventListeners() {
-    if (this.btnPrint) {
-      this.btnPrint.addEventListener('click', () => {
-        imprimirTicket();
-      });
-    }
-  }
-
-  startScanning() {
-    this.scanInterval = setInterval(() => {
-      if (this.isProcessing) return;
-
-      const imageData = this.cameraService.getFrameImageData();
-      if (!imageData) return;
-
-      const qrcodeData = decodeQRCodeFromImageData(imageData);
-      if (qrcodeData) {
-        const now = Date.now();
-        // Evita leituras duplicadas seguidas em menos de 4 segundos
-        if (this.lastScannedCode === qrcodeData && (now - this.lastScanTime) < 4000) {
-          return;
-        }
-
-        this.lastScannedCode = qrcodeData;
-        this.lastScanTime = now;
-        this.handleQRCodeRead(qrcodeData);
-      }
-    }, 300); // 300ms
-  }
-
-  async handleQRCodeRead(qrcodeHash) {
-    this.isProcessing = true;
-    this.showStatus('warning', 'loader', 'Processando leitura de QR Code...');
-
-    // Captura o snapshot atual para auditoria/comprovante
-    const photoBase64 = this.cameraService.captureSnapshot() || '';
-
-    try {
-      // 1. Buscar Funcionário
-      const funcionario = await buscarFuncionarioPorQRCode(qrcodeHash);
-
-      if (!funcionario) {
-        // QR Code Inválido ou Funcionário Inativo
-        await registrarOcorrencia({
-          funcionarioId: null,
-          qrcodeLido: qrcodeHash,
-          tipoOcorrencia: 'QRCODE_INVALIDO',
-          fotoUrl: photoBase64
-        });
-
-        this.showStatus('danger', 'x-circle', 'Acesso Negado: QR Code inválido ou não cadastrado.');
-        this.clearFeedbackArea('QR Code Desconhecido');
-        this.resetProcessingAfter(3500);
-        return;
-      }
-
-      // 2. Buscar Janelas de Horário
-      const janelas = await buscarJanelasHorario(funcionario.id);
-      const dataHoraAtual = new Date();
-
-      // 3. Validação de Janela de Horário
-      const validacao = validarJanelaHorario(dataHoraAtual, janelas);
-
-      if (!validacao.valido) {
-        // Tentativa fora da janela de horário -> Bloquear e Registrar Ocorrência
-        await registrarOcorrencia({
-          funcionarioId: funcionario.id,
-          qrcodeLido: qrcodeHash,
-          tipoOcorrencia: validacao.motivoBloqueio,
-          fotoUrl: photoBase64
-        });
-
-        const msg = validacao.motivoBloqueio === 'TENTATIVA_FORA_JANELA_ENTRADA'
-          ? `Horário não permitido para entrada. Fora da janela de tolerância.`
-          : `Horário não permitido para saída. Fora da janela de tolerância.`;
-
-        this.showStatus('danger', 'clock-alert', `PONTO BLOQUEADO (${funcionario.nome}): ${msg}`);
-        this.clearFeedbackArea('Batida fora da Janela Permitida');
-        this.resetProcessingAfter(4000);
-        return;
-      }
-
-      // 4. Batida Aprovada -> Gerar Hash Comprovante e Registrar Ponto
-      const hashComprovante = this.generateHashComprovante(funcionario.id, dataHoraAtual);
-
-      const registro = await registrarPonto({
-        funcionarioId: funcionario.id,
-        tipoRegistro: validacao.tipoRegistro,
-        fotoUrl: photoBase64,
-        hashComprovante: hashComprovante
-      });
-
-      // 5. Sucesso -> Exibir Feedback e Imprimir Ticket
-      this.showStatus('success', 'check-circle', `Ponto Registrado com Sucesso! Operação: ${validacao.tipoRegistro}`);
-
-      const ticketHtml = renderTicketHTML({
-        nome: funcionario.nome,
-        matricula: funcionario.matricula,
-        tipoRegistro: validacao.tipoRegistro,
-        dataHora: registro.data_hora || dataHoraAtual,
-        hashComprovante: hashComprovante
-      });
-
-      this.feedbackArea.innerHTML = ticketHtml;
-      this.ticketActions.style.display = 'flex';
-      renderIcons();
-
-      // Auto impressao (conforme SPEC: "um ticket seja impresso")
-      setTimeout(() => {
-        imprimirTicket();
-      }, 500);
-
-      this.resetProcessingAfter(6000);
-
-    } catch (error) {
-      console.error('Erro no fluxo de ponto:', error);
-      this.showStatus('danger', 'alert-triangle', 'Erro no processamento. Tente novamente.');
-      this.resetProcessingAfter(3000);
-    }
-  }
-
-  generateHashComprovante(funcionarioId, dateObj) {
-    const str = `${funcionarioId}-${dateObj.getTime()}-${Math.random()}`;
-    // Hash simples para representação do comprovante
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash |= 0;
-    }
-    return 'AUTH-' + Math.abs(hash).toString(16).toUpperCase() + '-' + dateObj.getTime();
-  }
-
-  showStatus(type, iconName, text) {
-    this.statusContainer.className = `alert alert-${type}`;
-    this.statusContainer.innerHTML = `
-      <i data-lucide="${iconName}"></i>
-      <span>${text}</span>
-    `;
-    renderIcons();
-  }
-
-  clearFeedbackArea(motivo) {
-    this.ticketActions.style.display = 'none';
-    this.feedbackArea.innerHTML = `
-      <div class="ticket-preview" style="text-align: center; color: var(--danger);">
-        <i data-lucide="shield-alert" style="width: 48px; height: 48px; margin: 0 auto 1rem;"></i>
-        <p><strong>REGISTRO BLOQUEADO</strong></p>
-        <p><small>${motivo}</small></p>
-      </div>
-    `;
-    renderIcons();
-  }
-
-  resetProcessingAfter(ms) {
-    setTimeout(() => {
-      this.isProcessing = false;
-      this.showStatus('warning', 'info', 'Aproxime o QR Code do seu crachá em frente à câmera...');
-    }, ms);
-  }
-}
+// App.js - Controlador do Simulador do Assistente de Segurança Pessoal
 
 document.addEventListener('DOMContentLoaded', () => {
-  const app = new KioskApp();
-  app.init();
+  // Inicialização do Lucide Icons
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+
+  // Relógio do Cabeçalho
+  const updateClock = () => {
+    const clockEl = document.getElementById('current-time');
+    if (clockEl) {
+      clockEl.textContent = new Date().toLocaleTimeString('pt-BR');
+    }
+  };
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // Histórico de Eventos em Memória da Sessão
+  const eventHistory = [];
+
+  const addHistoryEvent = (eventType) => {
+    const timestamp = new Date().toLocaleString('pt-BR');
+    const newEntry = { id: Date.now(), timestamp, type: eventType };
+    eventHistory.unshift(newEntry);
+    renderHistory();
+  };
+
+  const renderHistory = () => {
+    const historyList = document.getElementById('history-list-items');
+    const counterEl = document.getElementById('history-counter');
+
+    if (counterEl) {
+      counterEl.textContent = eventHistory.length;
+    }
+
+    if (!historyList) return;
+
+    if (eventHistory.length === 0) {
+      historyList.innerHTML = `<li class="empty-history">Nenhum evento registrado até o momento.</li>`;
+      return;
+    }
+
+    historyList.innerHTML = eventHistory.map(item => `
+      <li class="history-item">
+        <span><strong>${item.type}</strong></span>
+        <span class="text-muted"><small>${item.timestamp}</small></span>
+      </li>
+    `).join('');
+  };
+
+  // 1. Controle de Navegação entre Telas
+  const navButtons = document.querySelectorAll('.nav-btn, .nav-quick');
+  const screens = document.querySelectorAll('.app-screen');
+
+  const switchScreen = (targetScreenId) => {
+    screens.forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.screen === targetScreenId);
+    });
+
+    const activeScreen = document.getElementById(targetScreenId);
+    if (activeScreen) {
+      activeScreen.classList.add('active');
+    }
+  };
+
+  navButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.screen || btn.dataset.target;
+      if (target) switchScreen(target);
+    });
+  });
+
+  // 2. Funcionalidade 1: Botão SOS com Contagem Regressiva de 5s
+  const btnSosMain = document.getElementById('btn-sos-main');
+  const btnCancelSos = document.getElementById('btn-cancel-sos');
+  const countdownBox = document.getElementById('sos-countdown-container');
+  const countdownNum = document.getElementById('countdown-number');
+  const sosBadge = document.getElementById('sos-status-badge');
+
+  let sosTimer = null;
+  let countdownSeconds = 5;
+
+  if (btnSosMain) {
+    btnSosMain.addEventListener('click', () => {
+      if (sosTimer) return; // Já em contagem
+
+      countdownSeconds = 5;
+      if (countdownNum) countdownNum.textContent = countdownSeconds;
+      if (countdownBox) countdownBox.classList.remove('hidden');
+
+      if (sosBadge) {
+        sosBadge.className = 'badge badge-alert';
+        sosBadge.textContent = 'Status: Contagem de Confirmação SOS...';
+      }
+
+      sosTimer = setInterval(() => {
+        countdownSeconds--;
+        if (countdownNum) countdownNum.textContent = countdownSeconds;
+
+        if (countdownSeconds <= 0) {
+          clearInterval(sosTimer);
+          sosTimer = null;
+          if (countdownBox) countdownBox.classList.add('hidden');
+
+          if (sosBadge) {
+            sosBadge.className = 'badge badge-alert';
+            sosBadge.textContent = '🚨 Status: EMERGÊNCIA DISPARADA!';
+          }
+
+          addHistoryEvent('Acionamento de Emergência SOS');
+          alert('🚨 ALERTA SOS REGISTRADO E DISPARADO COM SUCESSO!');
+        }
+      }, 1000);
+    });
+  }
+
+  if (btnCancelSos) {
+    btnCancelSos.addEventListener('click', () => {
+      if (sosTimer) {
+        clearInterval(sosTimer);
+        sosTimer = null;
+      }
+      if (countdownBox) countdownBox.classList.add('hidden');
+
+      if (sosBadge) {
+        sosBadge.className = 'badge badge-safe';
+        sosBadge.textContent = 'Status: Monitoramento Ativo (SOS Cancelado)';
+      }
+
+      addHistoryEvent('Cancelamento de SOS pelo usuário');
+    });
+  }
+
+  // 3. Funcionalidade 2: Localização GPS
+  const btnUpdateGps = document.getElementById('btn-update-gps');
+  const btnOpenMaps = document.getElementById('btn-open-maps');
+  const btnToggleGpsError = document.getElementById('btn-toggle-gps-error');
+  const labelLat = document.getElementById('label-latitude');
+  const labelLng = document.getElementById('label-longitude');
+  const labelGpsStatus = document.getElementById('label-gps-status');
+
+  let simulatedLat = -23.550520;
+  let simulatedLng = -46.633308;
+  let isGpsError = false;
+
+  if (btnUpdateGps) {
+    btnUpdateGps.addEventListener('click', () => {
+      if (isGpsError) {
+        alert('Erro: GPS Indisponível ou Desativado!');
+        return;
+      }
+      simulatedLat += (Math.random() - 0.5) * 0.001;
+      simulatedLng += (Math.random() - 0.5) * 0.001;
+
+      if (labelLat) labelLat.textContent = simulatedLat.toFixed(6);
+      if (labelLng) labelLng.textContent = simulatedLng.toFixed(6);
+
+      addHistoryEvent(`Coordenadas Atualizadas (${simulatedLat.toFixed(4)}, ${simulatedLng.toFixed(4)})`);
+    });
+  }
+
+  if (btnOpenMaps) {
+    btnOpenMaps.addEventListener('click', () => {
+      if (isGpsError) {
+        alert('Não é possível abrir o mapa sem coordenadas válidas de GPS.');
+        return;
+      }
+      const url = `https://www.google.com/maps/search/?api=1&query=${simulatedLat},${simulatedLng}`;
+      window.open(url, '_blank');
+      addHistoryEvent('Abertura da localização no Google Maps');
+    });
+  }
+
+  if (btnToggleGpsError) {
+    btnToggleGpsError.addEventListener('click', () => {
+      isGpsError = !isGpsError;
+      if (isGpsError) {
+        if (labelLat) labelLat.textContent = 'Indisponível';
+        if (labelLng) labelLng.textContent = 'Indisponível';
+        if (labelGpsStatus) {
+          labelGpsStatus.className = 'text-muted';
+          labelGpsStatus.textContent = 'GPS Desativado / Sinal Perdido';
+        }
+        addHistoryEvent('Alerta: GPS Desativado/Indisponível');
+      } else {
+        if (labelLat) labelLat.textContent = simulatedLat.toFixed(6);
+        if (labelLng) labelLng.textContent = simulatedLng.toFixed(6);
+        if (labelGpsStatus) {
+          labelGpsStatus.className = 'text-success';
+          labelGpsStatus.textContent = 'GPS Ativo / Sinal Excelente';
+        }
+        addHistoryEvent('GPS Reativado com sucesso');
+      }
+    });
+  }
+
+  // 4. Funcionalidade 3: Sirene e Sinalização
+  const audioSiren = document.getElementById('audio-siren');
+  const btnPlaySiren = document.getElementById('btn-play-siren');
+  const btnTriggerVibration = document.getElementById('btn-trigger-vibration');
+  const btnToggleFlashlight = document.getElementById('btn-toggle-flashlight');
+  const btnStopAllAlerts = document.getElementById('btn-stop-all-alerts');
+  const sirenStatusCard = document.getElementById('siren-status-card');
+  const sirenStatusText = document.getElementById('siren-status-text');
+
+  let isSirenActive = false;
+  let isFlashlightActive = false;
+
+  if (btnPlaySiren) {
+    btnPlaySiren.addEventListener('click', () => {
+      isSirenActive = true;
+      if (audioSiren) {
+        audioSiren.play().catch(() => {
+          console.log('Autoplay restrito.');
+        });
+      }
+      if (sirenStatusCard) sirenStatusCard.classList.add('active-siren');
+      if (sirenStatusText) sirenStatusText.textContent = '🔊 Sirene de Alerta Reproduzindo!';
+      addHistoryEvent('Acionamento da Sirene Sonora');
+    });
+  }
+
+  if (btnTriggerVibration) {
+    btnTriggerVibration.addEventListener('click', () => {
+      if (navigator.vibrate) {
+        navigator.vibrate([500, 200, 500, 200, 500]);
+      }
+      alert('📳 Vibração ativada no dispositivo!');
+      addHistoryEvent('Acionamento da Vibração do Dispositivo');
+    });
+  }
+
+  if (btnToggleFlashlight) {
+    btnToggleFlashlight.addEventListener('click', () => {
+      isFlashlightActive = !isFlashlightActive;
+      alert(isFlashlightActive ? '🔦 Lanterna Ligada!' : '🔦 Lanterna Desligada!');
+      addHistoryEvent(isFlashlightActive ? 'Lanterna Ativada' : 'Lanterna Desativada');
+    });
+  }
+
+  if (btnStopAllAlerts) {
+    btnStopAllAlerts.addEventListener('click', () => {
+      isSirenActive = false;
+      isFlashlightActive = false;
+      if (audioSiren) {
+        audioSiren.pause();
+        audioSiren.currentTime = 0;
+      }
+      if (sirenStatusCard) sirenStatusCard.classList.remove('active-siren');
+      if (sirenStatusText) sirenStatusText.textContent = 'Nenhum alerta ativo';
+      addHistoryEvent('Interrupção de Todos os Alertas');
+    });
+  }
+
+  // 5. Funcionalidade 4: Checklist de Segurança
+  const checkboxes = document.querySelectorAll('.chk-procedure');
+  const progressFill = document.getElementById('progress-fill');
+  const progressPercentage = document.getElementById('progress-percentage');
+  const btnResetChecklist = document.getElementById('btn-reset-checklist');
+
+  const updateProgress = () => {
+    const total = checkboxes.length;
+    let checkedCount = 0;
+    checkboxes.forEach(chk => {
+      if (chk.checked) checkedCount++;
+    });
+
+    const percent = total > 0 ? Math.round((checkedCount / total) * 100) : 0;
+
+    if (progressFill) progressFill.style.width = `${percent}%`;
+    if (progressPercentage) progressPercentage.textContent = `${percent}% (${checkedCount}/${total})`;
+  };
+
+  checkboxes.forEach(chk => {
+    chk.addEventListener('change', () => {
+      updateProgress();
+      addHistoryEvent(`Checklist item ${chk.dataset.id}: ${chk.checked ? 'Marcado' : 'Desmarcado'}`);
+    });
+  });
+
+  if (btnResetChecklist) {
+    btnResetChecklist.addEventListener('click', () => {
+      checkboxes.forEach(chk => (chk.checked = false));
+      updateProgress();
+      addHistoryEvent('Checklist de Segurança Reiniciado');
+    });
+  }
+
+  // 6. Funcionalidade 5: Histórico em Memória
+  const btnClearHistory = document.getElementById('btn-clear-history');
+  if (btnClearHistory) {
+    btnClearHistory.addEventListener('click', () => {
+      eventHistory.length = 0;
+      renderHistory();
+    });
+  }
+
+  addHistoryEvent('Sessão do Assistente de Segurança Iniciada');
 });
